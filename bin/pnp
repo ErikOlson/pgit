@@ -1,3 +1,4 @@
 #!/bin/sh
 # pnp — shorthand for pgit pp
-exec pgit pp "$@"
+_dir="$(cd "$(dirname "$0")" && pwd)"
+exec "$_dir/pgit" pp "$@"

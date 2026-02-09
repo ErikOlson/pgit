@@ -66,6 +66,16 @@ teardown() {
     [[ "$output" == *"product only"* ]]
 }
 
+@test "pnp commit with only process changes commits process" {
+    echo "# Claude" > CLAUDE.md
+    pgit add CLAUDE.md
+    run pnp commit -m "process only"
+    [ "$status" -eq 0 ]
+
+    run git --git-dir=.pgit/layers/process/.git log --oneline -1
+    [[ "$output" == *"sync: process only"* ]]
+}
+
 @test "pp.auto-commit causes pgit commit to commit both" {
     pgit config pp.auto-commit true
 

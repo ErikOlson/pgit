@@ -373,13 +373,13 @@ pgit_pp_commit() {
         esac
     done
 
-    # Commit product
-    _exit=0
-    pgit_product_git_run commit "$@" || _exit=$?
+    # Commit product (may fail if nothing to commit — that's OK)
+    _product_exit=0
+    pgit_product_git_run commit "$@" || _product_exit=$?
 
     # Check if process has anything to commit
     if ! pgit_process_has_staged; then
-        exit $_exit
+        exit $_product_exit
     fi
 
     # Commit process with sync message
@@ -388,9 +388,10 @@ pgit_pp_commit() {
     else
         _process_msg="sync: process update"
     fi
-    pgit_process_git_run commit -m "$_process_msg" || true
+    pgit_process_git_run commit -m "$_process_msg"
 
-    exit $_exit
+    # Success if either repo committed
+    exit 0
 }
 
 # --- Config ---
