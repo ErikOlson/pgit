@@ -3,7 +3,7 @@
 # pgit zsh completion
 # Install to an fpath directory or eval "$(pgit completions zsh)"
 
-_pgit() {
+_pgit_complete() {
     local curcontext="$curcontext" state line
     typeset -A opt_args
 
@@ -76,7 +76,7 @@ _pgit() {
     esac
 }
 
-_pnp() {
+_pnp_complete() {
     local curcontext="$curcontext" state line
     typeset -A opt_args
 
@@ -111,11 +111,11 @@ _pnp() {
 # When loaded via fpath, $service is set by compinit from #compdef header.
 # When sourced directly (eval approach), register with compdef.
 if [[ -z "$service" ]]; then
-    compdef _pgit pgit
-    compdef _pnp pnp
+    compdef _pgit_complete pgit
+    compdef _pnp_complete pnp
 else
     case $service in
-        pgit) _pgit "$@" ;;
-        pnp)  _pnp "$@" ;;
+        pgit) _pgit_complete "$@" ;;
+        pnp)  _pnp_complete "$@" ;;
     esac
 fi
