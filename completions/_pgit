@@ -10,36 +10,36 @@ _pgit_complete() {
     _arguments -C \
         '(-V --version)'{-V,--version}'[show version]' \
         '(-h --help)'{-h,--help}'[show help]' \
+        '-p[run git against the process repo]' \
         '1: :->cmd' \
         '*: :->args'
 
     case $state in
         cmd)
-            local -a pgit_cmds
-            pgit_cmds=(
-                'init:initialize pgit in current directory'
-                'adopt:adopt pgit in an existing repo'
-                'add-to-process:move file(s) from product to process'
-                'pp:P&P multiplexer commands'
-                'completions:print shell completion script'
-                '-p:run git against the process repo'
-            )
-            _describe 'command' pgit_cmds
+            if (( ${+opt_args[-p]} )); then
+                # After -p, offer git commands
+                local -a git_cmds
+                git_cmds=(${(f)"$(git --list-cmds=main,others 2>/dev/null)"})
+                (( ${#git_cmds} )) && compadd -- "${git_cmds[@]}"
+            else
+                local -a pgit_cmds
+                pgit_cmds=(
+                    'init:initialize pgit in current directory'
+                    'adopt:adopt pgit in an existing repo'
+                    'add-to-process:move file(s) from product to process'
+                    'pp:P&P multiplexer commands'
+                    'completions:print shell completion script'
+                )
+                _describe 'command' pgit_cmds
 
-            # Also offer git commands
-            local -a git_cmds
-            git_cmds=(${(f)"$(git --list-cmds=main,others 2>/dev/null)"})
-            (( ${#git_cmds} )) && compadd -- "${git_cmds[@]}"
+                # Also offer git commands
+                local -a git_cmds
+                git_cmds=(${(f)"$(git --list-cmds=main,others 2>/dev/null)"})
+                (( ${#git_cmds} )) && compadd -- "${git_cmds[@]}"
+            fi
             ;;
         args)
             case ${line[1]} in
-                -p)
-                    if (( CURRENT == 2 )); then
-                        local -a git_cmds
-                        git_cmds=(${(f)"$(git --list-cmds=main,others 2>/dev/null)"})
-                        (( ${#git_cmds} )) && compadd -- "${git_cmds[@]}"
-                    fi
-                    ;;
                 pp)
                     if (( CURRENT == 2 )); then
                         local -a pp_cmds
