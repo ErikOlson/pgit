@@ -5,6 +5,7 @@
 setup() {
     export PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
     TEST_DIR="$(mktemp -d)"
+    export XDG_CONFIG_HOME="$TEST_DIR/config"
     cd "$TEST_DIR"
     git init -q
     git commit --allow-empty -q -m "initial"

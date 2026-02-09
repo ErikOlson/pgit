@@ -4,7 +4,8 @@
 
 set -e
 
-PGIT_VERSION="0.1.0"
+PGIT_VERSION="0.2.0"
+PGIT_REGISTRY_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pgit/patterns"
 
 # --- Walk-up discovery ---
 # Find .pgit/ directory by walking up from cwd.
@@ -394,6 +395,34 @@ pgit_pp_commit() {
     exit 0
 }
 
+# --- pgit pp registry ---
+
+pgit_pp_registry() {
+    if [ $# -eq 0 ]; then
+        pgit_registry_list
+        return
+    fi
+
+    case "$1" in
+        list)
+            pgit_registry_list
+            ;;
+        add)
+            shift
+            [ $# -eq 0 ] && pgit_die "usage: pnp registry add <pattern> [set-name]"
+            pgit_registry_add "$@"
+            ;;
+        remove)
+            shift
+            [ $# -eq 0 ] && pgit_die "usage: pnp registry remove <pattern>"
+            pgit_registry_remove "$1"
+            ;;
+        *)
+            pgit_die "unknown registry command: $1. Use list, add, or remove."
+            ;;
+    esac
+}
+
 # --- Config ---
 
 pgit_config_get() {
@@ -435,6 +464,184 @@ pgit_config_cmd() {
     pgit_config_set "$1" "$2"
 }
 
+# --- Registry ---
+
+# Ensure registry dir exists and install built-in patterns if missing.
+pgit_ensure_registry() {
+    mkdir -p "$PGIT_REGISTRY_DIR"
+    if [ ! -f "$PGIT_REGISTRY_DIR/claude-code.json" ]; then
+        cat > "$PGIT_REGISTRY_DIR/claude-code.json" << 'BUILTIN'
+{
+  "name": "claude-code",
+  "description": "Claude Code process files",
+  "patterns": [
+    "CLAUDE.md",
+    ".claude/",
+    "AGENTS.md",
+    "PLAN.md",
+    "TASKS.md"
+  ]
+}
+BUILTIN
+    fi
+    if [ ! -f "$PGIT_REGISTRY_DIR/agent-logs.json" ]; then
+        cat > "$PGIT_REGISTRY_DIR/agent-logs.json" << 'BUILTIN'
+{
+  "name": "agent-logs",
+  "description": "Agent log files",
+  "patterns": [
+    "*.agent-log"
+  ]
+}
+BUILTIN
+    fi
+}
+
+# Collect all patterns from registry into a newline-separated list.
+# Sets PGIT_REGISTRY_PATTERNS.
+pgit_load_registry_patterns() {
+    pgit_ensure_registry
+    PGIT_REGISTRY_PATTERNS=""
+    for _f in "$PGIT_REGISTRY_DIR"/*.json; do
+        [ -f "$_f" ] || continue
+        _pats=$(pgit_read_registry_file "$_f")
+        _old_ifs="$IFS"
+        IFS='
+'
+        for _p in $_pats; do
+            [ -z "$_p" ] && continue
+            # Deduplicate
+            case "$PGIT_REGISTRY_PATTERNS" in
+                *"$_p"*) ;;
+                *) PGIT_REGISTRY_PATTERNS="${PGIT_REGISTRY_PATTERNS}${_p}
+" ;;
+            esac
+        done
+        IFS="$_old_ifs"
+    done
+}
+
+# List all registry pattern sets.
+pgit_registry_list() {
+    pgit_ensure_registry
+    for _f in "$PGIT_REGISTRY_DIR"/*.json; do
+        [ -f "$_f" ] || continue
+        _name=$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_f")
+        _desc=$(sed -n 's/.*"description"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_f")
+        _pats=$(pgit_read_registry_file "$_f")
+        _display=""
+        _old_ifs="$IFS"
+        IFS='
+'
+        for _p in $_pats; do
+            [ -n "$_p" ] && _display="$_display $_p"
+        done
+        IFS="$_old_ifs"
+        echo "$_name — $_desc"
+        echo "  patterns:$_display"
+    done
+}
+
+# Read name, description, and patterns from a registry JSON file.
+# Sets _rname, _rdesc, and outputs patterns to stdout (one per line).
+pgit_read_registry_file() {
+    _rf="$1"
+    _rname=$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_rf")
+    _rdesc=$(sed -n 's/.*"description"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_rf")
+    _in_pat=0
+    while IFS= read -r _line; do
+        case "$_line" in
+            *'"patterns"'*) _in_pat=1; continue ;;
+        esac
+        if [ "$_in_pat" -eq 1 ]; then
+            case "$_line" in
+                *']'*) _in_pat=0; continue ;;
+                *)
+                    _p=$(echo "$_line" | sed -n 's/.*"\([^"]*\)".*/\1/p')
+                    [ -n "$_p" ] && echo "$_p"
+                    ;;
+            esac
+        fi
+    done < "$_rf"
+}
+
+# Write a registry JSON file from name, description, and patterns (one per line on stdin).
+pgit_write_registry_file() {
+    _wf="$1"
+    _wname="$2"
+    _wdesc="$3"
+    _wpats=""
+    _wfirst=true
+    while IFS= read -r _wp; do
+        [ -z "$_wp" ] && continue
+        if $_wfirst; then
+            _wpats="    \"$_wp\""
+            _wfirst=false
+        else
+            _wpats="$_wpats,
+    \"$_wp\""
+        fi
+    done
+    cat > "$_wf" << EOF
+{
+  "name": "$_wname",
+  "description": "$_wdesc",
+  "patterns": [
+$_wpats
+  ]
+}
+EOF
+}
+
+# Add a pattern to a registry set.
+# Usage: pgit_registry_add <pattern> [set-name]
+pgit_registry_add() {
+    _pattern="$1"
+    _set="${2:-custom}"
+    _file="$PGIT_REGISTRY_DIR/$_set.json"
+
+    pgit_ensure_registry
+
+    if [ -f "$_file" ]; then
+        if grep -q "\"$_pattern\"" "$_file" 2>/dev/null; then
+            echo "pgit: pattern '$_pattern' already in set '$_set'" >&2
+            return 0
+        fi
+        _existing=$(pgit_read_registry_file "$_file")
+        _name=$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_file")
+        _desc=$(sed -n 's/.*"description"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_file")
+        { echo "$_existing"; echo "$_pattern"; } | pgit_write_registry_file "$_file" "$_name" "$_desc"
+    else
+        echo "$_pattern" | pgit_write_registry_file "$_file" "$_set" "Custom patterns"
+    fi
+    echo "pgit: added '$_pattern' to registry set '$_set'"
+}
+
+# Remove a pattern from registry.
+pgit_registry_remove() {
+    _pattern="$1"
+
+    pgit_ensure_registry
+
+    _found=false
+    for _f in "$PGIT_REGISTRY_DIR"/*.json; do
+        [ -f "$_f" ] || continue
+        if grep -q "\"$_pattern\"" "$_f" 2>/dev/null; then
+            _existing=$(pgit_read_registry_file "$_f")
+            _name=$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_f")
+            _desc=$(sed -n 's/.*"description"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_f")
+            echo "$_existing" | grep -v "^${_pattern}$" | \
+                pgit_write_registry_file "$_f" "$_name" "$_desc"
+            echo "pgit: removed '$_pattern' from registry set '$_name'"
+            _found=true
+        fi
+    done
+
+    if ! $_found; then
+        pgit_die "pattern '$_pattern' not found in registry"
+    fi
+}
+
 # --- pgit init ---
 pgit_init() {
     # Must be run from a directory with .git/
@@ -448,11 +655,40 @@ pgit_init() {
 
     _root="$PWD"
 
+    # Load patterns from registry
+    pgit_load_registry_patterns
+
+    # Build patterns list: registry patterns + .pgit/ (always included)
+    _patterns="$PGIT_REGISTRY_PATTERNS"
+    # Ensure .pgit/ is always present
+    case "$_patterns" in
+        *".pgit/"*) ;;
+        *) _patterns="${_patterns}.pgit/
+" ;;
+    esac
+
     # Create directory structure
     mkdir -p ".pgit/layers/process"
 
-    # Write default config
-    cat > ".pgit/config.json" << 'CONF'
+    # Write config.json with registry-sourced patterns
+    _old_ifs="$IFS"
+    IFS='
+'
+    _json_patterns=""
+    _display_patterns=""
+    for _pat in $_patterns; do
+        [ -z "$_pat" ] && continue
+        if [ -n "$_json_patterns" ]; then
+            _json_patterns="$_json_patterns,
+        \"$_pat\""
+        else
+            _json_patterns="\"$_pat\""
+        fi
+        _display_patterns="$_display_patterns $_pat"
+    done
+    IFS="$_old_ifs"
+
+    cat > ".pgit/config.json" << EOF
 {
   "version": 1,
   "default_layer": "product",
@@ -463,65 +699,38 @@ pgit_init() {
     "process": {
       "git_dir": ".pgit/layers/process/.git",
       "patterns": [
-        "CLAUDE.md",
-        ".claude/",
-        "AGENTS.md",
-        "PLAN.md",
-        "TASKS.md",
-        "*.agent-log",
-        ".pgit/"
+        $_json_patterns
       ]
     }
   }
 }
-CONF
+EOF
 
     # Initialize process repo
     git init --bare ".pgit/layers/process/.git" >/dev/null 2>&1
     git --git-dir=".pgit/layers/process/.git" config core.bare false
     git --git-dir=".pgit/layers/process/.git" config core.worktree "$_root"
 
-    # Generate info/exclude for product repo
+    # Set PGIT_DIR/PGIT_ROOT so pgit_sync_excludes works
+    PGIT_DIR="$_root/.pgit"
+    PGIT_ROOT="$_root"
+
+    # Generate info/exclude for both repos
     _exclude=".git/info/exclude"
     mkdir -p ".git/info"
+    mkdir -p ".pgit/layers/process/.git/info"
 
-    # Preserve existing excludes, append pgit section
+    # Preserve existing product excludes, append pgit section
     if [ -f "$_exclude" ]; then
-        # Check if we already have a pgit section (shouldn't happen, but be safe)
         if grep -q "# pgit: process layer" "$_exclude" 2>/dev/null; then
             pgit_die "info/exclude already has pgit entries — this shouldn't happen."
         fi
     fi
 
-    {
-        echo ""
-        echo "# pgit: process layer patterns (auto-generated, do not edit)"
-        echo "CLAUDE.md"
-        echo ".claude/"
-        echo "AGENTS.md"
-        echo "PLAN.md"
-        echo "TASKS.md"
-        echo "*.agent-log"
-        echo ".pgit/"
-    } >> "$_exclude"
-
-    # Also exclude process patterns from the process repo's view of product files
-    _process_exclude=".pgit/layers/process/.git/info/exclude"
-    mkdir -p ".pgit/layers/process/.git/info"
-    {
-        echo "# pgit: product layer exclusions (everything NOT in process patterns)"
-        echo "*"
-        echo "!CLAUDE.md"
-        echo "!.claude/"
-        echo "!.claude/**"
-        echo "!AGENTS.md"
-        echo "!PLAN.md"
-        echo "!TASKS.md"
-        echo "!*.agent-log"
-    } > "$_process_exclude"
+    pgit_sync_excludes
 
     echo "pgit: initialized process layer in .pgit/"
-    echo "  process patterns: CLAUDE.md .claude/ AGENTS.md PLAN.md TASKS.md *.agent-log"
+    echo "  process patterns:$_display_patterns"
     echo "  product repo info/exclude updated"
     echo ""
     echo "Use 'pgit' for product, 'pgit -p' for process."
@@ -538,6 +747,10 @@ pgit_pp() {
         commit)
             shift
             pgit_pp_commit "$@"
+            ;;
+        registry)
+            shift
+            pgit_pp_registry "$@"
             ;;
         *)
             pgit_die "unknown pp command: $1"
@@ -605,6 +818,13 @@ esac
 if [ "${1:-}" = "init" ]; then
     shift
     pgit_init "$@"
+    exit 0
+fi
+
+# pp registry works without .pgit/
+if [ "${1:-}" = "pp" ] && [ "${2:-}" = "registry" ]; then
+    shift 2
+    pgit_pp_registry "$@"
     exit 0
 fi
 
