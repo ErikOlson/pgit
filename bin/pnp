@@ -1,0 +1,3 @@
+#!/bin/sh
+# pnp — shorthand for pgit pp
+exec pgit pp "$@"
