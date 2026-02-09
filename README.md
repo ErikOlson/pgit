@@ -1,10 +1,11 @@
-# pgit — P&P (Processes & Products) Git
+# pgit  
+# An AP&P (Advanced Processes & Products) Git Multiplexer  
 
-**A git multiplexer for separating process from product.**
+**A git multiplexer for separating agentic process from public product.**
 
 Keep your Claude Code files, agent configs, and AI workflow out of your source repo — without losing version control.
 
-*Roll for initiative on your development workflow.*
+*Roll for initiative on your agentic development workflow.*
 
 ---
 

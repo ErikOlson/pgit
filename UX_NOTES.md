@@ -6,5 +6,9 @@ If commands like 'status' have the normal git passthrough to product and the '-p
 
 
 
+Consider anything we want to add to pnp:
+pnp add . makes sense if we have the pnp commit -m
+also, add a pnp push then
+
 
 
