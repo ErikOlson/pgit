@@ -18,6 +18,8 @@
 
             nativeBuildInputs = [ pkgs.installShellFiles ];
 
+            dontBuild = true;
+
             installPhase = ''
               # Preserve relative structure pgit expects (bin/../lib, bin/../completions)
               mkdir -p $out/bin $out/lib $out/completions
