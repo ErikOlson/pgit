@@ -3,124 +3,119 @@
 # pgit zsh completion
 # Install to an fpath directory or eval "$(pgit completions zsh)"
 
-_pgit_pp_commands() {
-    local -a pp_cmds=(
-        'commit:commit across both process and product repos'
-        'registry:manage the pattern registry'
-        'remotes:show remotes for both repos'
-    )
-    _describe 'pp command' pp_cmds
-}
-
-_pgit_registry_commands() {
-    local -a reg_cmds=(
-        'list:list all registry pattern sets'
-        'add:add a pattern to a registry set'
-        'remove:remove a pattern from registry'
-    )
-    _describe 'registry command' reg_cmds
-}
-
-_pgit_main() {
-    local -a pgit_cmds=(
-        'init:initialize pgit in current directory'
-        'adopt:adopt pgit in an existing repo'
-        'add-to-process:move file(s) from product to process'
-        'pp:P\&P multiplexer commands'
-        'completions:print shell completion script'
-    )
-
-    local curcontext="$curcontext" state line ret=1
+_pgit() {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
 
     _arguments -C \
         '(-V --version)'{-V,--version}'[show version]' \
         '(-h --help)'{-h,--help}'[show help]' \
-        '1:command:->cmd' \
-        '*::arg:->args' && ret=0
+        '1: :->cmd' \
+        '*: :->args'
 
     case $state in
         cmd)
-            # Offer pgit-specific commands plus git commands
-            _alternative \
-                'pgit-commands:pgit command:_describe "pgit command" pgit_cmds' \
-                'git-commands:git command:_git_commands' && ret=0
+            local -a pgit_cmds
+            pgit_cmds=(
+                'init:initialize pgit in current directory'
+                'adopt:adopt pgit in an existing repo'
+                'add-to-process:move file(s) from product to process'
+                'pp:P&P multiplexer commands'
+                'completions:print shell completion script'
+                '-p:run git against the process repo'
+            )
+            _describe 'command' pgit_cmds
+
+            # Also offer git commands
+            local -a git_cmds
+            git_cmds=(${(f)"$(git --list-cmds=main,others 2>/dev/null)"})
+            (( ${#git_cmds} )) && compadd -- "${git_cmds[@]}"
             ;;
         args)
-            case $line[1] in
+            case ${line[1]} in
                 -p)
-                    # Process passthrough: complete like git
-                    _arguments -C \
-                        '1:git command:_git_commands' \
-                        '*::git arg:->passthrough' && ret=0
-                    if [ "$state" = passthrough ]; then
-                        words=("git" "${words[@]}")
-                        (( CURRENT+=1 ))
-                        service=git
-                        _git && ret=0
+                    if (( CURRENT == 2 )); then
+                        local -a git_cmds
+                        git_cmds=(${(f)"$(git --list-cmds=main,others 2>/dev/null)"})
+                        (( ${#git_cmds} )) && compadd -- "${git_cmds[@]}"
                     fi
                     ;;
                 pp)
-                    _arguments -C \
-                        '1:pp command:_pgit_pp_commands' \
-                        '*::pp arg:->pp_args' && ret=0
-                    case $state in
-                        pp_args)
-                            case $line[1] in
-                                registry)
-                                    _arguments \
-                                        '1:registry command:_pgit_registry_commands' && ret=0
-                                    ;;
-                            esac
-                            ;;
-                    esac
+                    if (( CURRENT == 2 )); then
+                        local -a pp_cmds
+                        pp_cmds=(
+                            'commit:commit across both repos'
+                            'registry:manage pattern registry'
+                            'remotes:show remotes for both repos'
+                        )
+                        _describe 'pp command' pp_cmds
+                    elif (( CURRENT == 3 )) && [[ ${line[2]} == registry ]]; then
+                        local -a reg_cmds
+                        reg_cmds=(
+                            'list:list all registry pattern sets'
+                            'add:add a pattern to a registry set'
+                            'remove:remove a pattern from registry'
+                        )
+                        _describe 'registry command' reg_cmds
+                    fi
                     ;;
                 adopt)
                     _arguments \
-                        '(-y --yes)'{-y,--yes}'[skip confirmation prompt]' && ret=0
+                        '(-y --yes)'{-y,--yes}'[skip confirmation prompt]'
                     ;;
                 completions)
-                    _arguments \
-                        '1:shell:(bash zsh fish)' && ret=0
+                    if (( CURRENT == 2 )); then
+                        compadd -- bash zsh fish
+                    fi
                     ;;
                 add-to-process)
-                    _files && ret=0
-                    ;;
-                *)
-                    # Git passthrough: delegate to _git
-                    words=("git" "${words[@]}")
-                    (( CURRENT+=1 ))
-                    service=git
-                    _git && ret=0
+                    _files
                     ;;
             esac
             ;;
     esac
-
-    return ret
 }
 
-_pnp_main() {
-    local curcontext="$curcontext" state line ret=1
+_pnp() {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
 
     _arguments -C \
-        '1:pp command:_pgit_pp_commands' \
-        '*::pp arg:->pp_args' && ret=0
+        '1: :->cmd' \
+        '*: :->args'
 
     case $state in
-        pp_args)
-            case $line[1] in
-                registry)
-                    _arguments \
-                        '1:registry command:_pgit_registry_commands' && ret=0
-                    ;;
-            esac
+        cmd)
+            local -a pp_cmds
+            pp_cmds=(
+                'commit:commit across both repos'
+                'registry:manage pattern registry'
+                'remotes:show remotes for both repos'
+            )
+            _describe 'pp command' pp_cmds
+            ;;
+        args)
+            if (( CURRENT == 2 )) && [[ ${line[1]} == registry ]]; then
+                local -a reg_cmds
+                reg_cmds=(
+                    'list:list all registry pattern sets'
+                    'add:add a pattern to a registry set'
+                    'remove:remove a pattern from registry'
+                )
+                _describe 'registry command' reg_cmds
+            fi
             ;;
     esac
-
-    return ret
 }
 
-case $service in
-    pgit) _pgit_main "$@" ;;
-    pnp)  _pnp_main "$@" ;;
-esac
+# When loaded via fpath, $service is set by compinit from #compdef header.
+# When sourced directly (eval approach), register with compdef.
+if [[ -z "$service" ]]; then
+    compdef _pgit pgit
+    compdef _pnp pnp
+else
+    case $service in
+        pgit) _pgit "$@" ;;
+        pnp)  _pnp "$@" ;;
+    esac
+fi
