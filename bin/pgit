@@ -32,6 +32,7 @@ case "${1:-}" in
         echo "       pgit adopt [-y]"
         echo "       pgit add-to-process <file> [<file> ...]"
         echo "       pgit pp <command>"
+        echo "       pgit completions <shell>"
         echo ""
         echo "Git multiplexer for process & product separation."
         echo ""
@@ -41,11 +42,27 @@ case "${1:-}" in
         echo "  pgit init              Initialize pgit in current directory"
         echo "  pgit adopt [-y]        Adopt pgit in an existing repo"
         echo "  pgit add-to-process    Move file(s) from product to process"
+        echo "  pgit completions       Print shell completion script"
         exit 0
         ;;
 esac
 
 # Commands that don't need .pgit/
+if [ "${1:-}" = "completions" ]; then
+    _shell="${2:-}"
+    _completions_dir="$(cd "$(dirname "$0")/../completions" && pwd)"
+    case "$_shell" in
+        bash) cat "$_completions_dir/pgit.bash" ;;
+        zsh)  cat "$_completions_dir/_pgit" ;;
+        fish) cat "$_completions_dir/pgit.fish" ;;
+        *)
+            echo "usage: pgit completions <bash|zsh|fish>" >&2
+            exit 1
+            ;;
+    esac
+    exit 0
+fi
+
 if [ "${1:-}" = "init" ]; then
     shift
     pgit_init "$@"

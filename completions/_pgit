@@ -1,0 +1,126 @@
+#compdef pgit pnp
+
+# pgit zsh completion
+# Install to an fpath directory or eval "$(pgit completions zsh)"
+
+_pgit_pp_commands() {
+    local -a pp_cmds=(
+        'commit:commit across both process and product repos'
+        'registry:manage the pattern registry'
+        'remotes:show remotes for both repos'
+    )
+    _describe 'pp command' pp_cmds
+}
+
+_pgit_registry_commands() {
+    local -a reg_cmds=(
+        'list:list all registry pattern sets'
+        'add:add a pattern to a registry set'
+        'remove:remove a pattern from registry'
+    )
+    _describe 'registry command' reg_cmds
+}
+
+_pgit_main() {
+    local -a pgit_cmds=(
+        'init:initialize pgit in current directory'
+        'adopt:adopt pgit in an existing repo'
+        'add-to-process:move file(s) from product to process'
+        'pp:P\&P multiplexer commands'
+        'completions:print shell completion script'
+    )
+
+    local curcontext="$curcontext" state line ret=1
+
+    _arguments -C \
+        '(-V --version)'{-V,--version}'[show version]' \
+        '(-h --help)'{-h,--help}'[show help]' \
+        '1:command:->cmd' \
+        '*::arg:->args' && ret=0
+
+    case $state in
+        cmd)
+            # Offer pgit-specific commands plus git commands
+            _alternative \
+                'pgit-commands:pgit command:_describe "pgit command" pgit_cmds' \
+                'git-commands:git command:_git_commands' && ret=0
+            ;;
+        args)
+            case $line[1] in
+                -p)
+                    # Process passthrough: complete like git
+                    _arguments -C \
+                        '1:git command:_git_commands' \
+                        '*::git arg:->passthrough' && ret=0
+                    if [ "$state" = passthrough ]; then
+                        words=("git" "${words[@]}")
+                        (( CURRENT+=1 ))
+                        service=git
+                        _git && ret=0
+                    fi
+                    ;;
+                pp)
+                    _arguments -C \
+                        '1:pp command:_pgit_pp_commands' \
+                        '*::pp arg:->pp_args' && ret=0
+                    case $state in
+                        pp_args)
+                            case $line[1] in
+                                registry)
+                                    _arguments \
+                                        '1:registry command:_pgit_registry_commands' && ret=0
+                                    ;;
+                            esac
+                            ;;
+                    esac
+                    ;;
+                adopt)
+                    _arguments \
+                        '(-y --yes)'{-y,--yes}'[skip confirmation prompt]' && ret=0
+                    ;;
+                completions)
+                    _arguments \
+                        '1:shell:(bash zsh fish)' && ret=0
+                    ;;
+                add-to-process)
+                    _files && ret=0
+                    ;;
+                *)
+                    # Git passthrough: delegate to _git
+                    words=("git" "${words[@]}")
+                    (( CURRENT+=1 ))
+                    service=git
+                    _git && ret=0
+                    ;;
+            esac
+            ;;
+    esac
+
+    return ret
+}
+
+_pnp_main() {
+    local curcontext="$curcontext" state line ret=1
+
+    _arguments -C \
+        '1:pp command:_pgit_pp_commands' \
+        '*::pp arg:->pp_args' && ret=0
+
+    case $state in
+        pp_args)
+            case $line[1] in
+                registry)
+                    _arguments \
+                        '1:registry command:_pgit_registry_commands' && ret=0
+                    ;;
+            esac
+            ;;
+    esac
+
+    return ret
+}
+
+case $service in
+    pgit) _pgit_main "$@" ;;
+    pnp)  _pnp_main "$@" ;;
+esac
