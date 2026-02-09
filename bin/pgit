@@ -4,7 +4,7 @@
 
 set -e
 
-PGIT_VERSION="0.2.0"
+PGIT_VERSION="0.3.0"
 PGIT_REGISTRY_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pgit/patterns"
 
 # --- Walk-up discovery ---
@@ -736,6 +736,151 @@ EOF
     echo "Use 'pgit' for product, 'pgit -p' for process."
 }
 
+# --- pgit adopt ---
+pgit_adopt() {
+    # Must have .git/ but NOT .pgit/
+    if [ ! -d ".git" ]; then
+        pgit_die "not a git repository. Run 'git init' first."
+    fi
+    if [ -d ".pgit" ]; then
+        pgit_die "already initialized (.pgit/ exists). Use 'pgit add-to-process' to move individual files."
+    fi
+
+    _root="$PWD"
+
+    # Load registry patterns
+    pgit_load_registry_patterns
+
+    # Build patterns list (same logic as init)
+    _patterns="$PGIT_REGISTRY_PATTERNS"
+    case "$_patterns" in
+        *".pgit/"*) ;;
+        *) _patterns="${_patterns}.pgit/
+" ;;
+    esac
+
+    # Temporarily set globals for pgit_classify_file
+    PGIT_PROCESS_PATTERNS="$_patterns"
+
+    # Find tracked files that match process patterns
+    _tracked=$(git ls-files)
+    _process_files=""
+    _process_count=0
+
+    _old_ifs="$IFS"
+    IFS='
+'
+    for _file in $_tracked; do
+        [ -z "$_file" ] && continue
+        _layer=$(pgit_classify_file "$_file")
+        if [ "$_layer" = "process" ]; then
+            _process_files="$_process_files$_file
+"
+            _process_count=$((_process_count + 1))
+        fi
+    done
+    IFS="$_old_ifs"
+
+    if [ "$_process_count" -eq 0 ]; then
+        echo "pgit: no tracked files match process patterns."
+        echo "Initializing pgit anyway (use 'pgit add-to-process' to move files later)."
+        pgit_init
+        return
+    fi
+
+    # Show proposed classification
+    echo "pgit adopt: found $_process_count process file(s) tracked in product repo:"
+    echo ""
+    _old_ifs="$IFS"
+    IFS='
+'
+    for _file in $_process_files; do
+        [ -z "$_file" ] && continue
+        echo "  $_file"
+    done
+    IFS="$_old_ifs"
+    echo ""
+    echo "These files will be:"
+    echo "  1. Removed from product repo tracking (git rm --cached)"
+    echo "  2. Added to the new process repo"
+    echo "  3. Left on disk (not deleted)"
+    echo ""
+
+    # Check for --yes flag
+    _confirmed=false
+    for _arg in "$@"; do
+        case "$_arg" in
+            -y|--yes) _confirmed=true ;;
+        esac
+    done
+
+    if ! $_confirmed; then
+        printf "Proceed? [y/N] "
+        read -r _answer
+        case "$_answer" in
+            [yY]|[yY][eE][sS]) ;;
+            *) echo "pgit: adopt cancelled."; exit 0 ;;
+        esac
+    fi
+
+    # Run init to set up .pgit/
+    pgit_init
+
+    # Now move process files: git rm --cached from product, git add to process
+    _old_ifs="$IFS"
+    IFS='
+'
+    for _file in $_process_files; do
+        [ -z "$_file" ] && continue
+        GIT_DIR="$_root/.git" GIT_WORK_TREE="$_root" git rm --cached -q "$_file" 2>/dev/null || true
+        GIT_DIR="$_root/.pgit/layers/process/.git" GIT_WORK_TREE="$_root" git add -f "$_file" 2>/dev/null || true
+    done
+    IFS="$_old_ifs"
+
+    echo ""
+    echo "pgit adopt: moved $_process_count file(s) to process layer."
+    echo "  Product repo has staged removals — commit with: pgit commit -m 'adopt: move process files'"
+    echo "  Process repo has staged additions — commit with: pgit -p commit -m 'adopt: initial process tracking'"
+    echo "  Or use: pnp commit -m 'adopt pgit'"
+}
+
+# --- pgit add-to-process ---
+pgit_add_to_process() {
+    if [ $# -eq 0 ]; then
+        pgit_die "usage: pgit add-to-process <file> [<file> ...]"
+    fi
+
+    pgit_load_patterns
+    _moved=0
+
+    for _file in "$@"; do
+        if [ ! -f "$_file" ]; then
+            echo "pgit: skipping '$_file' (not a file)" >&2
+            continue
+        fi
+
+        # Get path relative to project root
+        _subdir=$(pgit_get_subdir)
+        _relfile="$_file"
+        if [ -n "$_subdir" ]; then
+            _relfile="$_subdir/$_file"
+        fi
+
+        # Remove from product tracking
+        pgit_product_git_run rm --cached -q "$_file" 2>/dev/null || true
+
+        # Add to process tracking (force needed because info/exclude has *)
+        pgit_process_git_run add -f "$_file" 2>/dev/null || true
+
+        echo "pgit: moved '$_relfile' from product to process"
+        _moved=$((_moved + 1))
+    done
+
+    if [ "$_moved" -gt 0 ]; then
+        echo "pgit: $_moved file(s) moved. Commit both repos to finalize."
+    fi
+}
+
 # --- pgit pp ---
 pgit_pp() {
     if [ $# -eq 0 ]; then
@@ -752,10 +897,35 @@ pgit_pp() {
             shift
             pgit_pp_registry "$@"
             ;;
+        remotes)
+            pgit_pp_remotes
+            ;;
         *)
             pgit_die "unknown pp command: $1"
             ;;
     esac
+}
+
+pgit_pp_remotes() {
+    if ! pgit_find_root; then
+        pgit_die "not a pgit directory (no .pgit/ found)."
+    fi
+
+    echo "product remotes:"
+    _product_remotes=$(pgit_product_git_run remote -v 2>/dev/null) || true
+    if [ -n "$_product_remotes" ]; then
+        echo "$_product_remotes" | sed 's/^/  /'
+    else
+        echo "  (none)"
+    fi
+
+    echo "process remotes:"
+    _process_remotes=$(pgit_process_git_run remote -v 2>/dev/null) || true
+    if [ -n "$_process_remotes" ]; then
+        echo "$_process_remotes" | sed 's/^/  /'
+    else
+        echo "  (none)"
+    fi
 }
 
 pgit_pp_overview() {
@@ -785,9 +955,38 @@ pgit_pp_overview() {
     _product_commit=$(git --git-dir="$PGIT_ROOT/.git" log --oneline -1 2>/dev/null || echo "(no commits)")
     _process_commit=$(git --git-dir="$PGIT_DIR/layers/process/.git" log --oneline -1 2>/dev/null || echo "(no commits)")
 
-    echo "product  [$_product_branch] $_product_status"
+    # Remote tracking info
+    _product_remote=""
+    if git --git-dir="$PGIT_ROOT/.git" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+        _upstream=$(git --git-dir="$PGIT_ROOT/.git" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null)
+        _ahead=$(git --git-dir="$PGIT_ROOT/.git" rev-list --count '@{upstream}..HEAD' 2>/dev/null || echo 0)
+        _behind=$(git --git-dir="$PGIT_ROOT/.git" rev-list --count 'HEAD..@{upstream}' 2>/dev/null || echo 0)
+        if [ "$_ahead" -gt 0 ] && [ "$_behind" -gt 0 ]; then
+            _product_remote=" ↑$_ahead ↓$_behind"
+        elif [ "$_ahead" -gt 0 ]; then
+            _product_remote=" ↑$_ahead"
+        elif [ "$_behind" -gt 0 ]; then
+            _product_remote=" ↓$_behind"
+        fi
+    fi
+
+    _process_remote=""
+    if git --git-dir="$PGIT_DIR/layers/process/.git" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+        _upstream=$(git --git-dir="$PGIT_DIR/layers/process/.git" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null)
+        _ahead=$(git --git-dir="$PGIT_DIR/layers/process/.git" rev-list --count '@{upstream}..HEAD' 2>/dev/null || echo 0)
+        _behind=$(git --git-dir="$PGIT_DIR/layers/process/.git" rev-list --count 'HEAD..@{upstream}' 2>/dev/null || echo 0)
+        if [ "$_ahead" -gt 0 ] && [ "$_behind" -gt 0 ]; then
+            _process_remote=" ↑$_ahead ↓$_behind"
+        elif [ "$_ahead" -gt 0 ]; then
+            _process_remote=" ↑$_ahead"
+        elif [ "$_behind" -gt 0 ]; then
+            _process_remote=" ↓$_behind"
+        fi
+    fi
+
+    echo "product  [$_product_branch] $_product_status$_product_remote"
     echo "  $_product_commit"
-    echo "process  [$_process_branch] $_process_status"
+    echo "process  [$_process_branch] $_process_status$_process_remote"
     echo "  $_process_commit"
 }
 
@@ -802,22 +1001,32 @@ case "${1:-}" in
     --help|-h)
         echo "usage: pgit [--version] [-p] <git-command> [<args>]"
         echo "       pgit init"
+        echo "       pgit adopt [-y]"
+        echo "       pgit add-to-process <file> [<file> ...]"
         echo "       pgit pp <command>"
         echo ""
         echo "Git multiplexer for process & product separation."
         echo ""
-        echo "  pgit <cmd>      Run git against the product repo"
-        echo "  pgit -p <cmd>   Run git against the process repo"
-        echo "  pgit pp <cmd>   P&P multiplexer commands"
-        echo "  pgit init       Initialize pgit in current directory"
+        echo "  pgit <cmd>             Run git against the product repo"
+        echo "  pgit -p <cmd>          Run git against the process repo"
+        echo "  pgit pp <cmd>          P&P multiplexer commands"
+        echo "  pgit init              Initialize pgit in current directory"
+        echo "  pgit adopt [-y]        Adopt pgit in an existing repo"
+        echo "  pgit add-to-process    Move file(s) from product to process"
         exit 0
         ;;
 esac
 
-# Special case: pgit init doesn't need .pgit/ to exist
+# Special cases: commands that don't need .pgit/ to exist
 if [ "${1:-}" = "init" ]; then
     shift
     pgit_init "$@"
+    exit 0
+fi
+
+if [ "${1:-}" = "adopt" ]; then
+    shift
+    pgit_adopt "$@"
     exit 0
 fi
 
@@ -859,6 +1068,10 @@ case "${1:-}" in
                 commit)
                     shift
                     pgit_commit "$@"
+                    ;;
+                add-to-process)
+                    shift
+                    pgit_add_to_process "$@"
                     ;;
                 config)
                     # pp.* keys → pgit config; everything else → git config
