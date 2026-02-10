@@ -59,11 +59,13 @@ teardown() {
     [ "$output" = "$TEST_DIR" ]
 }
 
-@test "pgit init fails without .git" {
+@test "pgit init creates .git if missing" {
     rm -rf .git
     run pgit init
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"not a git repository"* ]]
+    [ "$status" -eq 0 ]
+    [ -d ".git" ]
+    [ -d ".pgit" ]
+    [[ "$output" == *"no git repo found"* ]]
 }
 
 @test "pgit init fails if already initialized" {

@@ -2,7 +2,8 @@
 
 pgit_init() {
     if [ ! -d ".git" ]; then
-        pgit_die "not a git repository. Run 'git init' first."
+        echo "pgit: no git repo found, initializing one..."
+        git init
     fi
 
     if [ -d ".pgit" ]; then
