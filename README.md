@@ -1,17 +1,18 @@
 # pgit
-# An AP&P (Advanced Processes & Products) Git Multiplexer
 
-**A git multiplexer for separating agentic process from public product.**
+**A git multiplexer that keeps agentic process files out of your product repo.**
 
-Keep your Claude Code files, agent configs, and AI workflow out of your source repo, without losing version control.
+Keep your Claude Code files, agent configs, and AI workflow under version control without committing them to the source you ship. Use `pgit` as a drop-in for `git`.
 
-*Roll for initiative on your agentic development workflow.*
+## What it does
 
----
+pgit runs two git repos over one working directory. Your **product** files (the source you ship) live in a normal `.git` repo. Your **process** files (`CLAUDE.md`, `.claude/`, agent configs) live in a separate private repo under `.pgit/`. It uses git's native `GIT_DIR` / `GIT_WORK_TREE` separation, so each repo sees only its own files and a clone of your product repo has zero trace of the process layer.
 
-# 📕 P&P Basic Edition
+Use `pgit` exactly like `git`. No flag targets product, `-p` targets process.
 
-*You encounter a project directory. What do you do?*
+## Status
+
+Early development. The core is implemented and tested (74 passing tests): `init`, automatic routing, product and process passthrough, `adopt`, the pattern registry, and `pp.auto-commit`. Planned work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Install
 
@@ -40,34 +41,31 @@ sudo make install                          # or: make install PREFIX="$HOME/.loc
 make install-completions                   # optional: shell completions
 ```
 
-## Start
+## Quickstart
 
 ```bash
-pgit init
+pgit init                               # set up the process layer
+pgit add .                              # stages each file to the right repo
+pgit commit -m "add login page"         # commits the product repo
+pgit -p commit -m "update agent docs"   # commits the process repo
+pnp                                     # status of both layers at a glance
 ```
 
-Done. You now have separate version control for your process files and your product files.
+No `-p` means product. `-p` means process. **That's the whole game.**
 
-## Use
+The defaults route these to process out of the box, everything else is product:
 
-Use `pgit` exactly like `git`:
-
-```bash
-pgit add .
-pgit commit -m "add login page"
-pgit push
+```
+CLAUDE.md    .claude/    AGENTS.md    PLAN.md    TASKS.md
 ```
 
-This works on your **product repo**, your source code, the thing you ship.
+---
 
-To work with your **process files** (agent configs, `CLAUDE.md`, skills), add `-p`:
+*The rest of this README is the long version. Roll for initiative.*
 
-```bash
-pgit -p commit -m "update agent instructions"
-pgit -p push
-```
+# 📕 P&P Basic Edition
 
-No `-p` → product. `-p` → process. **That's the whole game.**
+*You encounter a project directory. What do you do?*
 
 ## See Both
 
@@ -75,17 +73,11 @@ No `-p` → product. `-p` → process. **That's the whole game.**
 pnp
 ```
 
-Shows status of both layers at a glance.
+Shows status of both layers at a glance: branch, clean or dirty, last commit, and how far each is ahead of or behind its remote.
 
 ## What Happens Automatically
 
-pgit knows these files are process, out of the box:
-
-```
-CLAUDE.md    .claude/    AGENTS.md    PLAN.md    TASKS.md
-```
-
-Everything else is product. Your product repo has zero trace of the process layer. Anyone who clones it sees a normal project.
+When you `pgit add .`, files route to the correct repo automatically. Product files stage in the product repo, process files stage in the process repo. Your product repo has zero trace of the process layer. Anyone who clones it sees a normal project.
 
 ## No pgit? No Problem
 
@@ -95,6 +87,8 @@ In directories without `pgit init`, pgit passes straight through to git. Safe to
 alias git=pgit
 ```
 
+It's invisible when you don't need it.
+
 ---
 
 # 📘 Advanced P&P
@@ -103,7 +97,7 @@ alias git=pgit
 
 ## Smart Routing
 
-When you `pgit add .`, files route to the correct repo automatically. Product files stage in the product repo. Process files stage in the process repo. You don't think about it.
+When you `pgit add .`, the process patterns decide where each file lands. Product files stage in the product repo, process files stage in the process repo. You don't think about it.
 
 ## Committing
 
@@ -320,10 +314,6 @@ Every developer using a coding agent is generating process artifacts. Today thes
 pgit provides clean P&P separation before the entanglement becomes permanent.
 
 *Don't split the party. Split the repos.*
-
-## Status
-
-Early development. The core (init, routing, passthrough, adopt, registry, auto-commit) is implemented and tested; see the [roadmap](ROADMAP.md) for what's planned. Contributions welcome.
 
 ## License
 
