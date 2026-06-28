@@ -8,3 +8,6 @@
 # Local install/build artifacts
 result
 result-*
+
+# Claude Code per-machine settings (local to each clone, belongs to no layer)
+.claude/settings.local.json

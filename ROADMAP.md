@@ -55,6 +55,26 @@ need a fully clean past.
 Status: not implemented, and intentionally cautious. Rewriting shared history is
 a one-way door, so this needs careful design and clear warnings before it ships.
 
+## Local files that belong to no layer
+
+pgit's routing is binary: every file goes to product or to process. Dogfooding
+surfaced a third case, a file that should be ignored by *both* layers. The
+example is `.claude/settings.local.json`, Claude Code's per-machine settings,
+which belongs in neither the public product repo nor the shared process repo.
+Left alone it matches `.claude/` and shows up untracked in process, where a
+broad add could stage it.
+
+The good news: this already works through a plain `.gitignore`. Both layers
+share one working tree, and a working-tree `.gitignore` takes precedence over
+the generated `info/exclude`, so a single product-tracked `.gitignore` entry
+hides the file from both repos. Note that manual edits to the process
+`info/exclude` do not survive (`pgit_sync_excludes` regenerates it), so
+`.gitignore` is the durable place for these rules.
+
+What's left is ergonomics, not capability: a possible `pnp ignore <path>` helper
+that adds the entry, and seeding Claude's known local files on `init`. Until
+then, add the path to `.gitignore` by hand.
+
 ## Other planned work
 
 - Remote cross-reference: suggest a process remote name derived from the product
