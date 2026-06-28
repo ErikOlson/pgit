@@ -1,6 +1,6 @@
 # pgit
 
-[![tests](https://github.com/ErikOlson/pgit/actions/workflows/tests.yml/badge.svg)](https://github.com/ErikOlson/pgit/actions/workflows/tests.yml)
+[![tests](https://github.com/erikolson/pgit/actions/workflows/tests.yml/badge.svg)](https://github.com/erikolson/pgit/actions/workflows/tests.yml)
 
 **A git multiplexer that keeps agentic process files out of your product repo.**
 
@@ -23,7 +23,7 @@ pgit is a set of POSIX shell scripts. Pick whichever install fits your setup.
 **Add the repo to your PATH** (simplest):
 
 ```bash
-git clone https://github.com/ErikOlson/pgit
+git clone https://github.com/erikolson/pgit
 export PATH="$PWD/pgit/bin:$PATH"   # add this to your shell rc to persist
 ```
 
@@ -32,7 +32,7 @@ Keep the clone in place: `pgit` finds its libraries relative to the script.
 **Nix** (flake):
 
 ```bash
-nix profile install github:ErikOlson/pgit
+nix profile install github:erikolson/pgit
 ```
 
 **make install** (under `/usr/local` by default):
@@ -227,7 +227,7 @@ The agent harness is the brand-specific binding that drives those capabilities: 
 
 The decoupling is the point. A `make test` target lives in product; a `.claude/commands/test.md` that runs it and acts on the output lives in process. Swap one agent for another and the platform harness never moves. Only the agent harness changes. pgit keeps that seam clean and gives each side its own history.
 
-You can see this split live: this project's own process layer is published, for demonstration, at [pgit-process](https://github.com/ErikOlson/pgit-process). It holds the `CLAUDE.md` and `.claude/` files that never appear in this repo.
+You can see this split live: this project's own process layer is published, for demonstration, at [pgit-process](https://github.com/erikolson/pgit-process). It holds the `CLAUDE.md` and `.claude/` files that never appear in this repo.
 
 ## The Mechanism
 
@@ -296,7 +296,7 @@ The registry isn't meant to be configured top-down. It's built from practice:
 
 Your registry becomes a spellbook built from spells you've actually cast, not ones copied from a textbook. Today the promote step is manual; surfacing untracked process artifacts and prompting to promote them automatically is on the [roadmap](ROADMAP.md). We call the end state **progressive codification**, the transformation of tacit practice into reusable configuration.
 
-This is the same philosophy behind [cperm](https://github.com/ErikOlson/cperm), a composable permissions manager for Claude Code that uses the same use → promote → reuse loop for agent permission patterns.
+This is the same philosophy behind [cperm](https://github.com/erikolson/cperm), a composable permissions manager for Claude Code that uses the same use → promote → reuse loop for agent permission patterns.
 
 ## Design Principles
 
