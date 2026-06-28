@@ -71,11 +71,20 @@ teardown() {
     [[ "$output" != *"src/app.js"* ]]
 }
 
-@test "pgit add routes PLAN.md to process" {
+@test "pgit add routes AGENTS.md to process" {
+    echo "# Agents" > AGENTS.md
+    pgit add AGENTS.md
+    run git --git-dir=.pgit/layers/process/.git --work-tree=. diff --cached --name-only
+    [[ "$output" == *"AGENTS.md"* ]]
+}
+
+@test "pgit add leaves PLAN.md in product by default" {
     echo "# Plan" > PLAN.md
     pgit add PLAN.md
-    run git --git-dir=.pgit/layers/process/.git --work-tree=. diff --cached --name-only
+    run git --git-dir=.git --work-tree=. diff --cached --name-only
     [[ "$output" == *"PLAN.md"* ]]
+    run git --git-dir=.pgit/layers/process/.git --work-tree=. diff --cached --name-only
+    [[ "$output" != *"PLAN.md"* ]]
 }
 
 @test "pgit add routes .agent-log files to process" {
@@ -88,13 +97,13 @@ teardown() {
 @test "pgit add multiple files routes each correctly" {
     echo "code" > main.go
     echo "# Claude" > CLAUDE.md
-    echo "# Tasks" > TASKS.md
-    pgit add main.go CLAUDE.md TASKS.md
+    echo "# Agents" > AGENTS.md
+    pgit add main.go CLAUDE.md AGENTS.md
 
     run git --git-dir=.git --work-tree=. diff --cached --name-only
     [[ "$output" == *"main.go"* ]]
 
     run git --git-dir=.pgit/layers/process/.git --work-tree=. diff --cached --name-only
     [[ "$output" == *"CLAUDE.md"* ]]
-    [[ "$output" == *"TASKS.md"* ]]
+    [[ "$output" == *"AGENTS.md"* ]]
 }

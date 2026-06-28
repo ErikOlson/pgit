@@ -56,8 +56,10 @@ No `-p` means product. `-p` means process. **That's the whole game.**
 The defaults route these to process out of the box, everything else is product:
 
 ```
-CLAUDE.md    .claude/    AGENTS.md    PLAN.md    TASKS.md
+CLAUDE.md    .claude/    AGENTS.md    *.agent-log
 ```
+
+The defaults are deliberately narrow: only files that are genuinely coupled to a specific agent. Design docs, plans, and notes default to product (visible), and you move them into process by choice when you want them private.
 
 ---
 
@@ -129,11 +131,11 @@ your-project/
 ├── src/              ← product repo (public, shared)
 ├── tests/            ← product repo
 ├── README.md         ← product repo
+├── ARCHITECTURE.md   ← product repo (design is public)
 ├── CLAUDE.md         ← process repo (private, versioned)
 ├── .claude/          ← process repo
-│   ├── agents/
+│   ├── commands/
 │   └── skills/
-├── PLAN.md           ← process repo
 └── .pgit/            ← pgit metadata + process repo storage
 ```
 
@@ -213,6 +215,16 @@ This creates a new artifact category with fundamentally different properties:
 
 These concerns have different audiences, different access controls, different lifecycles, and different sensitivity. They need separate version control.
 
+## Platform Harness and Agent Harness
+
+The cleanest way to see the split: your product is the **platform harness** and your process is the **agent harness**.
+
+The platform harness is every capability that any tool or contributor can use: the build, the test runner, the linter, the scripts, the documented contracts. It is agent-agnostic and it belongs in the product repo, in the open.
+
+The agent harness is the brand-specific binding that drives those capabilities: the `CLAUDE.md`, the `.claude/` commands and skills, the hooks that know how and when to invoke them. It is coupled to a particular agent and it belongs in the process repo, private.
+
+The decoupling is the point. A `make test` target lives in product; a `.claude/commands/test.md` that runs it and acts on the output lives in process. Swap one agent for another and the platform harness never moves. Only the agent harness changes. pgit keeps that seam clean and gives each side its own history.
+
 ## The Mechanism
 
 pgit uses git's native `GIT_DIR` / `GIT_WORK_TREE` separation. Both repos share the same working directory, but each only sees its own files.
@@ -257,9 +269,7 @@ pgit maintains a routing table mapping file patterns to layers:
       "patterns": [
         "CLAUDE.md",
         "AGENTS.md",
-        ".claude/",
-        "PLAN.md",
-        "TASKS.md"
+        ".claude/"
       ]
     }
   }

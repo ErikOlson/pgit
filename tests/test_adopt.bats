@@ -78,9 +78,10 @@ teardown() {
 @test "pgit adopt with multiple process files moves all" {
     echo "# Claude" > CLAUDE.md
     echo "# Agents" > AGENTS.md
-    echo "# Plan" > PLAN.md
+    mkdir -p .claude
+    echo "{}" > .claude/config.json
     echo "code" > index.js
-    git add CLAUDE.md AGENTS.md PLAN.md index.js
+    git add CLAUDE.md AGENTS.md .claude/config.json index.js
     git commit -q -m "initial"
 
     run pgit adopt --yes
@@ -90,7 +91,7 @@ teardown() {
     # All files still on disk
     [ -f "CLAUDE.md" ]
     [ -f "AGENTS.md" ]
-    [ -f "PLAN.md" ]
+    [ -f ".claude/config.json" ]
     [ -f "index.js" ]
 }
 

@@ -46,20 +46,20 @@ teardown() {
     [[ "$output" != *"src/main.rs"* ]]
 }
 
-@test "PLAN.md routes to process" {
+@test "PLAN.md routes to product by default (not auto-hidden)" {
     echo "# Plan" > PLAN.md
     run pgit status --porcelain
-    [[ "$output" != *"PLAN.md"* ]]
-    run pgit -p status --porcelain
     [[ "$output" == *"PLAN.md"* ]]
+    run pgit -p status --porcelain
+    [[ "$output" != *"PLAN.md"* ]]
 }
 
-@test "TASKS.md routes to process" {
+@test "TASKS.md routes to product by default (not auto-hidden)" {
     echo "# Tasks" > TASKS.md
     run pgit status --porcelain
-    [[ "$output" != *"TASKS.md"* ]]
-    run pgit -p status --porcelain
     [[ "$output" == *"TASKS.md"* ]]
+    run pgit -p status --porcelain
+    [[ "$output" != *"TASKS.md"* ]]
 }
 
 @test ".claude/ directory routes to process" {

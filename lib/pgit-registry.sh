@@ -11,9 +11,7 @@ pgit_ensure_registry() {
   "patterns": [
     "CLAUDE.md",
     ".claude/",
-    "AGENTS.md",
-    "PLAN.md",
-    "TASKS.md"
+    "AGENTS.md"
   ]
 }
 BUILTIN

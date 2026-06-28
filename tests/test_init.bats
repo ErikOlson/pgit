@@ -29,8 +29,7 @@ teardown() {
     run cat ".pgit/config.json"
     [[ "$output" == *'"CLAUDE.md"'* ]]
     [[ "$output" == *'".claude/"'* ]]
-    [[ "$output" == *'"PLAN.md"'* ]]
-    [[ "$output" == *'"TASKS.md"'* ]]
+    [[ "$output" == *'"AGENTS.md"'* ]]
 }
 
 @test "pgit init updates product info/exclude" {
