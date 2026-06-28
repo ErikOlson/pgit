@@ -75,6 +75,20 @@ What's left is ergonomics, not capability: a possible `pnp ignore <path>` helper
 that adds the entry, and seeding Claude's known local files on `init`. Until
 then, add the path to `.gitignore` by hand.
 
+## Boundary-guard hook
+
+pgit keeps process files out of the product repo with git's exclude mechanism,
+which covers the normal path but can be bypassed (for example `git add -f`). A
+`pre-commit` hook on the product repo could enforce the boundary mechanically:
+read the process patterns from `.pgit/config.json` and reject any commit that
+stages a path matching them, with a message pointing the user at `pgit -p`.
+
+This turns "the product repo is sacred" into an enforced invariant rather than a
+convention. Candidate delivery: an opt-in installer (`pgit hooks install`, or a
+prompt during `pgit init`). The hook lives in `.git/hooks` (local, never
+committed), so it stays compatible with the rule that the product repo carries
+zero pgit traces.
+
 ## Other planned work
 
 - Remote cross-reference: suggest a process remote name derived from the product
