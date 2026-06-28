@@ -225,6 +225,8 @@ The agent harness is the brand-specific binding that drives those capabilities: 
 
 The decoupling is the point. A `make test` target lives in product; a `.claude/commands/test.md` that runs it and acts on the output lives in process. Swap one agent for another and the platform harness never moves. Only the agent harness changes. pgit keeps that seam clean and gives each side its own history.
 
+You can see this split live: this project's own process layer is published, for demonstration, at [pgit-process](https://github.com/ErikOlson/pgit-process). It holds the `CLAUDE.md` and `.claude/` files that never appear in this repo.
+
 ## The Mechanism
 
 pgit uses git's native `GIT_DIR` / `GIT_WORK_TREE` separation. Both repos share the same working directory, but each only sees its own files.

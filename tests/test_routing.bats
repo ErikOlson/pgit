@@ -84,6 +84,29 @@ teardown() {
     [[ "$output" != *"app.js"* ]]
 }
 
+@test "path-specific pattern routes a nested file without hiding its siblings" {
+    # Route only docs/PRIVATE.md to process; docs/PUBLIC.md must stay product.
+    _config=".pgit/config.json"
+    _tmp=$(mktemp)
+    sed 's|"\.pgit/"|"docs/PRIVATE.md",\
+        ".pgit/"|' "$_config" > "$_tmp"
+    mv "$_tmp" "$_config"
+
+    mkdir -p docs
+    echo "private" > docs/PRIVATE.md
+    echo "public"  > docs/PUBLIC.md
+
+    pgit add .
+
+    run git --git-dir=.git --work-tree=. diff --cached --name-only
+    [[ "$output" == *"docs/PUBLIC.md"* ]]
+    [[ "$output" != *"docs/PRIVATE.md"* ]]
+
+    run git --git-dir=.pgit/layers/process/.git --work-tree=. diff --cached --name-only
+    [[ "$output" == *"docs/PRIVATE.md"* ]]
+    [[ "$output" != *"docs/PUBLIC.md"* ]]
+}
+
 @test "pgit -p with no args shows process status" {
     echo "# Process" > CLAUDE.md
     run pgit -p

@@ -89,6 +89,27 @@ pgit_match_pattern() {
     return 1
 }
 
+# Emit "!ancestor/" lines for each parent directory of a path-specific pattern.
+# git will not descend into a directory excluded by "*", so to un-ignore a file
+# like ".github/README.md" the process exclude must first un-ignore ".github/".
+pgit_emit_ancestor_unignores() {
+    _path="$1"
+    case "$_path" in
+        */*) ;;
+        *) return 0 ;;
+    esac
+    _parent="${_path%/*}"
+    _acc=""
+    _save_ifs="$IFS"
+    IFS='/'
+    for _seg in $_parent; do
+        [ -z "$_seg" ] && continue
+        if [ -z "$_acc" ]; then _acc="$_seg"; else _acc="$_acc/$_seg"; fi
+        echo "!$_acc/"
+    done
+    IFS="$_save_ifs"
+}
+
 # Regenerate info/exclude files from config.json patterns.
 pgit_sync_excludes() {
     pgit_load_patterns
@@ -163,6 +184,7 @@ pgit_sync_excludes() {
                     echo "!$_dir/**"
                     ;;
                 *)
+                    pgit_emit_ancestor_unignores "$_pat"
                     echo "!$_pat"
                     ;;
             esac
