@@ -7,8 +7,18 @@ set -e
 PGIT_VERSION="0.3.0"
 PGIT_REGISTRY_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pgit/patterns"
 
-# Resolve lib directory relative to this script
-PGIT_LIB="$(cd "$(dirname "$0")/../lib" && pwd)"
+# Resolve lib directory relative to this script.
+# Two layouts are supported: the repo/nix layout (bin/../lib) and the
+# `make install` layout (bin/../lib/pgit).
+_pgit_bin="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$_pgit_bin/../lib/pgit-core.sh" ]; then
+    PGIT_LIB="$(cd "$_pgit_bin/../lib" && pwd)"
+elif [ -f "$_pgit_bin/../lib/pgit/pgit-core.sh" ]; then
+    PGIT_LIB="$(cd "$_pgit_bin/../lib/pgit" && pwd)"
+else
+    echo "pgit: cannot locate lib directory (looked in $_pgit_bin/../lib)" >&2
+    exit 2
+fi
 
 . "$PGIT_LIB/pgit-core.sh"
 . "$PGIT_LIB/pgit-patterns.sh"
@@ -50,7 +60,15 @@ esac
 # Commands that don't need .pgit/
 if [ "${1:-}" = "completions" ]; then
     _shell="${2:-}"
-    _completions_dir="$(cd "$(dirname "$0")/../completions" && pwd)"
+    # Repo/nix layout keeps completions at bin/../completions; `make install`
+    # places them under bin/../share/pgit/completions.
+    _completions_dir=""
+    for _cand in "$_pgit_bin/../completions" "$_pgit_bin/../share/pgit/completions"; do
+        if [ -d "$_cand" ]; then
+            _completions_dir="$(cd "$_cand" && pwd)"
+            break
+        fi
+    done
     case "$_shell" in
         bash) cat "$_completions_dir/pgit.bash" ;;
         zsh)  cat "$_completions_dir/_pgit" ;;

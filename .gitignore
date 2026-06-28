@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Editor noise
+*.swp
+*~
+
+# Local install/build artifacts
+result
+result-*
