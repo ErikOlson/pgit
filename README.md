@@ -1,5 +1,7 @@
 # pgit
 
+[![tests](https://github.com/ErikOlson/pgit/actions/workflows/tests.yml/badge.svg)](https://github.com/ErikOlson/pgit/actions/workflows/tests.yml)
+
 **A git multiplexer that keeps agentic process files out of your product repo.**
 
 Keep your Claude Code files, agent configs, and AI workflow under version control without committing them to the source you ship. Use `pgit` as a drop-in for `git`.
